@@ -3,15 +3,31 @@ import json
 import time
 import os
 import random
+from kafka.errors import NoBrokersAvailable
+import sys
 
 def create_producer():
     # Create a Kafka producer instance
     bootstrap_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')
-    producer = KafkaProducer(
-        bootstrap_servers=[bootstrap_servers],
-        value_serializer=lambda v: json.dumps(v).encode('utf-8')
-    )
-    return producer
+    retries = 30
+    while retries > 0:
+        try:
+            producer = KafkaProducer(
+                bootstrap_servers=[bootstrap_servers],
+                value_serializer=lambda v: json.dumps(v).encode('utf-8'),
+                reconnect_backoff_ms=1000,
+                reconnect_backoff_max_ms=5000,
+                retry_backoff_ms=1000
+            )
+            print(f"Successfully connected to Kafka at {bootstrap_servers}")
+            return producer
+        except NoBrokersAvailable:
+            print(f"Waiting for Kafka to be available at {bootstrap_servers}... {retries} retries left")
+            retries -= 1
+            time.sleep(2)
+    
+    print("Failed to connect to Kafka after all retries")
+    sys.exit(1)
 
 def send_message(producer, topic, message):
     # Send message to specified topic
