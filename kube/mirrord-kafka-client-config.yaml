@@ -1,0 +1,15 @@
+apiVersion: queues.mirrord.metalbear.co/v1alpha
+kind: MirrordKafkaClientConfig
+metadata:
+  name: base-config
+  namespace: mirrord
+spec:
+  properties:
+  - name: bootstrap.servers
+    value: kafka-0.kafka.default.svc.cluster.local:9092
+  - name: message.send.max.retries
+    value: "4"
+  - name: client.id
+    value: mirrord-operator
+  - name: message.send.max.retries
+    value: null

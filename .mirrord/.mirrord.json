@@ -1,0 +1,17 @@
+{
+    "target": {
+        "path": "deployment/kafka-consumer",
+        "namespace": "default"
+    },
+    "operator": true,
+    "feature": {
+        "split_queues": {
+            "test_topic": {
+                "queue_type": "Kafka",
+                "message_filter": {
+                    "group.id": "test-consumer-group"
+                }
+            }
+        }
+    }
+}

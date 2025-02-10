@@ -8,6 +8,7 @@ import sys
 def create_consumer(topic):
     # Create a Kafka consumer instance
     bootstrap_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')
+    group_id = os.getenv('KAFKA_GROUP_ID', 'test-consumer-group')
     retries = 30
     while retries > 0:
         try:
@@ -17,7 +18,7 @@ def create_consumer(topic):
                 value_deserializer=lambda x: json.loads(x.decode('utf-8')),
                 auto_offset_reset='earliest',
                 enable_auto_commit=True,
-                group_id='test-consumer-group',
+                group_id=group_id,
                 reconnect_backoff_ms=1000,
                 reconnect_backoff_max_ms=5000,
                 retry_backoff_ms=1000
@@ -33,7 +34,7 @@ def create_consumer(topic):
     sys.exit(1)
 
 def main():
-    topic = 'test_topic'
+    topic = os.getenv('KAFKA_TOPIC_NAME', 'test_topic')
     consumer = create_consumer(topic)
     
     print(f"Starting to consume messages from topic {topic}...")

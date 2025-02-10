@@ -19,5 +19,9 @@ spec:
         env:
         - name: KAFKA_BOOTSTRAP_SERVERS
           value: "kafka-0.kafka.default.svc.cluster.local:9092"
+        - name: KAFKA_GROUP_ID
+          value: "test-consumer-group"
+        - name: KAFKA_TOPIC_NAME
+          value: "test_topic"
         command: ["python"]
         args: ["kafka_consumer.py"] 
