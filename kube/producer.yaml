@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
       - name: producer
-        image:  waveywaves/mirrord-kafka-debug-ex:latest
-        imagePullPolicy: Never
+        image:  docker.io/waveywaves/mirrord-kafka-debug-ex:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 5000
         env:
