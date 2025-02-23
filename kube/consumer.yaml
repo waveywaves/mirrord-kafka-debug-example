@@ -2,6 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kafka-consumer
+  labels:
+    app: kafka-consumer
 spec:
   replicas: 1
   selector:
@@ -14,14 +16,43 @@ spec:
     spec:
       containers:
       - name: consumer
-        image: docker.io/waveywaves/mirrord-queues-debug-ex-consumer:latest
-        imagePullPolicy: Always
+        image:  waveywaves/mirrord-kafka-debug-ex:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 5000
         env:
         - name: KAFKA_BOOTSTRAP_SERVERS
-          value: "kafka-0.kafka.default.svc.cluster.local:9092"
-        - name: KAFKA_GROUP_ID
-          value: "test-consumer-group"
-        - name: KAFKA_TOPIC_NAME
-          value: "test_topic"
-        command: ["python"]
-        args: ["kafka_consumer.py"] 
+          value: "kafka:9092"
+        - name: KAFKA_TOPIC
+          value: "test-topic"
+        - name: APP_MODE
+          value: "consumer"
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        livenessProbe:
+          httpGet:
+            path: /status
+            port: 5000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /status
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-consumer
+spec:
+  selector:
+    app: kafka-consumer
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5000
+  type: LoadBalancer 

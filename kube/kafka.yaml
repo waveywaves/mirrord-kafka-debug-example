@@ -2,15 +2,17 @@ apiVersion: v1
 kind: Service
 metadata:
   name: kafka
+  labels:
+    app: kafka
 spec:
   ports:
   - port: 9092
-    name: plaintext
+    name: kafka
   - port: 9093
     name: controller
+  clusterIP: None
   selector:
     app: kafka
-  clusterIP: None  # Make it a headless service
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -32,7 +34,7 @@ spec:
         image: bitnami/kafka:latest
         ports:
         - containerPort: 9092
-          name: plaintext
+          name: kafka
         - containerPort: 9093
           name: controller
         env:
@@ -69,7 +71,18 @@ spec:
           initialDelaySeconds: 15
           periodSeconds: 10
           timeoutSeconds: 5
-          failureThreshold: 5
+          failureThreshold: 3
+        livenessProbe:
+          exec:
+            command:
+            - kafka-topics.sh
+            - --bootstrap-server
+            - localhost:9092
+            - --list
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
   volumeClaimTemplates:
   - metadata:
       name: kafka-data

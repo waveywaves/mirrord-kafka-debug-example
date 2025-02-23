@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🪞 mirrord Kafka {{ mode | title }}</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.2/ace.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 min-h-screen p-8">
+    <div class="max-w-6xl mx-auto">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">🪞 mirrord Kafka {{ mode | title }}</h1>
+            <div class="text-sm bg-blue-100 rounded-lg px-4 py-2">
+                Mode: <span class="font-semibold">{{ mode | title }}</span>
+            </div>
+        </div>
+
+        {% if mode == 'producer' %}
+        <!-- Producer Section -->
+        <div class="bg-white p-6 rounded-lg shadow-lg">
+            <div class="space-y-4">
+                <!-- Message Type Selector -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Message Type</label>
+                    <select id="messageType" class="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" onchange="toggleEditor()">
+                        <option value="text">Plain Text</option>
+                        <option value="json">JSON</option>
+                    </select>
+                </div>
+
+                <!-- Editor Container -->
+                <div id="editorContainer" class="hidden">
+                    <div id="jsonEditor" style="height: 200px; width: 100%; border-radius: 8px; border: 1px solid #e2e8f0;"></div>
+                </div>
+
+                <!-- Text Area (for plain text) -->
+                <div id="textContainer">
+                    <textarea id="messageInput" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" rows="4" placeholder="Enter your message here..."></textarea>
+                </div>
+
+                <!-- Controls -->
+                <div class="flex space-x-2">
+                    <button onclick="sendMessage()" class="flex-1 bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition duration-200">Send Message</button>
+                    <button onclick="clearMessage()" class="bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600 transition duration-200">Clear</button>
+                </div>
+
+                <!-- Status -->
+                <div id="producerStatus" class="text-sm text-gray-600"></div>
+
+                <!-- Message History -->
+                <div>
+                    <h3 class="text-md font-semibold text-gray-700 mb-2">Recent Messages Sent</h3>
+                    <div id="messageHistory" class="space-y-2 h-96 overflow-y-auto p-3 border rounded-lg bg-gray-50">
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if mode == 'consumer' %}
+        <!-- Consumer Section -->
+        <div class="bg-white p-6 rounded-lg shadow-lg">
+            <div class="space-y-4">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-xl font-semibold text-gray-700">Incoming Messages</h2>
+                    <div id="messageCount" class="text-sm text-gray-600">
+                        Messages received: 0
+                    </div>
+                </div>
+                <div id="messages" class="space-y-2 h-[700px] overflow-y-auto p-4 border rounded-lg">
+                    <div class="text-sm text-gray-500">Waiting for messages...</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        const socket = io();
+        let jsonEditor;
+        let messageHistory = [];
+        const MAX_HISTORY = 50;
+        let messageCount = 0;
+
+        {% if mode == 'producer' %}
+        // Initialize ACE editor
+        window.onload = function() {
+            jsonEditor = ace.edit("jsonEditor");
+            jsonEditor.setTheme("ace/theme/tomorrow");
+            jsonEditor.session.setMode("ace/mode/json");
+            jsonEditor.setOptions({
+                fontSize: "12pt",
+                showPrintMargin: false,
+                wrap: true
+            });
+        };
+
+        function toggleEditor() {
+            const type = document.getElementById('messageType').value;
+            const editorContainer = document.getElementById('editorContainer');
+            const textContainer = document.getElementById('textContainer');
+
+            if (type === 'json') {
+                editorContainer.classList.remove('hidden');
+                textContainer.classList.add('hidden');
+                if (!jsonEditor.getValue()) {
+                    jsonEditor.setValue('{\n  "key": "value"\n}', -1);
+                }
+            } else {
+                editorContainer.classList.add('hidden');
+                textContainer.classList.remove('hidden');
+            }
+        }
+
+        function clearMessage() {
+            const type = document.getElementById('messageType').value;
+            if (type === 'json') {
+                jsonEditor.setValue('{\n  "key": "value"\n}', -1);
+            } else {
+                document.getElementById('messageInput').value = '';
+            }
+        }
+
+        function addToHistory(message, metadata) {
+            messageHistory.unshift({ message, metadata, timestamp: new Date() });
+            if (messageHistory.length > MAX_HISTORY) {
+                messageHistory.pop();
+            }
+            updateHistoryDisplay();
+        }
+
+        function updateHistoryDisplay() {
+            const historyDiv = document.getElementById('messageHistory');
+            historyDiv.innerHTML = messageHistory.map((entry, index) => `
+                <div class="text-sm p-2 bg-white rounded border hover:bg-gray-50 cursor-pointer" onclick="loadHistoryMessage(${index})">
+                    <div class="flex justify-between">
+                        <span class="font-medium text-gray-600">${entry.timestamp.toLocaleTimeString()}</span>
+                        <span class="text-xs text-gray-500">Partition: ${entry.metadata.partition}, Offset: ${entry.metadata.offset}</span>
+                    </div>
+                    <div class="text-gray-500 truncate">${typeof entry.message === 'object' ? JSON.stringify(entry.message) : entry.message}</div>
+                </div>
+            `).join('');
+        }
+
+        function loadHistoryMessage(index) {
+            const entry = messageHistory[index];
+            const type = document.getElementById('messageType');
+            
+            if (typeof entry.message === 'object') {
+                type.value = 'json';
+                toggleEditor();
+                jsonEditor.setValue(JSON.stringify(entry.message, null, 2), -1);
+            } else {
+                type.value = 'text';
+                toggleEditor();
+                document.getElementById('messageInput').value = entry.message;
+            }
+        }
+        
+        function sendMessage() {
+            const statusDiv = document.getElementById('producerStatus');
+            const type = document.getElementById('messageType').value;
+            let message;
+
+            try {
+                if (type === 'json') {
+                    const jsonStr = jsonEditor.getValue();
+                    message = JSON.parse(jsonStr);
+                } else {
+                    message = document.getElementById('messageInput').value;
+                }
+
+                if (!message) {
+                    throw new Error('Message cannot be empty');
+                }
+
+                fetch('/produce', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        statusDiv.textContent = 'Message sent successfully!';
+                        statusDiv.className = 'text-sm text-green-600';
+                        addToHistory(message, data.metadata);
+                    } else {
+                        throw new Error(data.error);
+                    }
+                })
+                .catch(error => {
+                    statusDiv.textContent = `Error: ${error.message}`;
+                    statusDiv.className = 'text-sm text-red-600';
+                });
+            } catch (error) {
+                statusDiv.textContent = `Error: ${error.message}`;
+                statusDiv.className = 'text-sm text-red-600';
+            }
+        }
+        {% endif %}
+
+        {% if mode == 'consumer' %}
+        socket.on('kafka_message', function(data) {
+            const messagesDiv = document.getElementById('messages');
+            const messageElement = document.createElement('div');
+            messageElement.className = 'bg-gray-50 p-3 rounded-lg';
+            
+            const timestamp = new Date(data.timestamp).toLocaleString();
+            const formattedValue = typeof data.value === 'object' 
+                ? JSON.stringify(data.value, null, 2) 
+                : data.value;
+
+            messageElement.innerHTML = `
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-sm text-gray-600">${timestamp}</span>
+                    <span class="text-xs bg-blue-100 rounded px-2 py-1">
+                        Topic: ${data.topic}, Partition: ${data.partition}, Offset: ${data.offset}
+                    </span>
+                </div>
+                <pre class="text-gray-800 whitespace-pre-wrap break-words">${formattedValue}</pre>
+            `;
+            
+            messagesDiv.insertBefore(messageElement, messagesDiv.firstChild);
+            messageCount++;
+            document.getElementById('messageCount').textContent = `Messages received: ${messageCount}`;
+            
+            if (messagesDiv.children.length > 100) {
+                messagesDiv.removeChild(messagesDiv.lastChild);
+            }
+        });
+        {% endif %}
+    </script>
+</body>
+</html> 
