@@ -10,11 +10,11 @@ spec:
   topics:
   - id: test_topic
     clientConfig: base-config
-    groupIdSources:
-    - directEnvVar:
-        container: consumer
-        variable: KAFKA_GROUP_ID
     nameSources:
     - directEnvVar:
         container: consumer
-        variable: KAFKA_TOPIC_NAME 
+        variable: KAFKA_TOPIC
+    groupIdSources:
+    - directEnvVar:
+        container: consumer
+        variable: KAFKA_GROUP_ID 

@@ -1,17 +1,17 @@
 {
-    "target": {
-        "path": "deployment/kafka-consumer",
-        "namespace": "default"
-    },
     "operator": true,
+    "target": {
+        "deployment": "kafka-consumer",
+        "container": "consumer"
+    },
     "feature": {
         "split_queues": {
             "test_topic": {
                 "queue_type": "Kafka",
                 "message_filter": {
-                    "group.id": "test-consumer-group"
+                    "source": "^test-"
                 }
             }
         }
     }
-}
+} 

@@ -70,7 +70,6 @@ coverage.xml
 .hypothesis/
 
 # Misc
-.mirrord/
 *.pid
 *.seed
 *.pid.lock
