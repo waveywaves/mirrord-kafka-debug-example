@@ -18,7 +18,7 @@ spec:
       - name: consumer
         image:  docker.io/waveywaves/mirrord-kafka-debug-ex:latest
         imagePullPolicy: Always
-        command: ["gunicorn", "--worker-class", "eventlet", "--workers", "1", "--timeout", "120", "--bind", "0.0.0.0:9090", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info", "app:app"]
+        command: ["python", "app.py"]
         ports:
         - containerPort: 9090
         env:
@@ -32,14 +32,6 @@ spec:
           value: "consumer"
         - name: PYTHONUNBUFFERED
           value: "1"
-        livenessProbe:
-          httpGet:
-            path: /status
-            port: 9090
-          initialDelaySeconds: 10
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
 
 ---
 apiVersion: v1
@@ -51,6 +43,6 @@ spec:
     app: kafka-consumer
   ports:
     - protocol: TCP
-      port: 80
+      port: 9090
       targetPort: 9090
-  type: LoadBalancer 
+  type: ClusterIP 

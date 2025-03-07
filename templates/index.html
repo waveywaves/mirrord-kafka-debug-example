@@ -21,6 +21,11 @@
         <!-- Producer Section -->
         <div class="bg-white p-6 rounded-lg shadow-lg">
             <div class="space-y-4">
+                <!-- Connection Status -->
+                <div id="connectionStatus" class="text-xs py-1 px-2 rounded bg-yellow-100 text-yellow-800">
+                    WebSocket: Connecting...
+                </div>
+                
                 <!-- Message Type Selector -->
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Message Type</label>
@@ -63,6 +68,11 @@
         <!-- Consumer Section -->
         <div class="bg-white p-6 rounded-lg shadow-lg">
             <div class="space-y-4">
+                <!-- Connection Status -->
+                <div id="connectionStatus" class="text-xs py-1 px-2 rounded bg-yellow-100 text-yellow-800">
+                    WebSocket: Connecting...
+                </div>
+                
                 <div class="flex justify-between items-center">
                     <h2 class="text-xl font-semibold text-gray-700">Incoming Messages</h2>
                     <div id="messageCount" class="text-sm text-gray-600">
@@ -78,13 +88,44 @@
     </div>
 
     <script>
-        const socket = io();
+        // Initialize Socket.IO with a more robust connection
+        const socket = io({
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            timeout: 20000,
+            autoConnect: true
+        });
+        
         let jsonEditor;
         let messageHistory = [];
         const MAX_HISTORY = 50;
         let messageCount = 0;
+        let pendingMessages = {};
+
+        // Socket connection events
+        socket.on('connect', function() {
+            document.getElementById('connectionStatus').textContent = 'WebSocket: Connected';
+            document.getElementById('connectionStatus').className = 'text-xs py-1 px-2 rounded bg-green-100 text-green-800';
+            console.log('WebSocket connected');
+        });
+
+        socket.on('disconnect', function() {
+            document.getElementById('connectionStatus').textContent = 'WebSocket: Disconnected - Trying to reconnect...';
+            document.getElementById('connectionStatus').className = 'text-xs py-1 px-2 rounded bg-red-100 text-red-800';
+            console.log('WebSocket disconnected');
+        });
+
+        socket.on('connect_error', function(error) {
+            document.getElementById('connectionStatus').textContent = `WebSocket: Error - ${error.message}`;
+            document.getElementById('connectionStatus').className = 'text-xs py-1 px-2 rounded bg-red-100 text-red-800';
+            console.error('Connection error:', error);
+        });
 
         {% if mode == 'producer' %}
+        // Producer-specific code
+        
         // Initialize ACE editor
         window.onload = function() {
             jsonEditor = ace.edit("jsonEditor");
@@ -96,6 +137,23 @@
                 wrap: true
             });
         };
+
+        // Listen for metadata updates
+        socket.on('message_metadata_update', function(data) {
+            console.log('Received metadata update:', data);
+            const messageId = data.message_id;
+            
+            // Find the message in our history
+            for (let i = 0; i < messageHistory.length; i++) {
+                if (messageHistory[i].id === messageId) {
+                    messageHistory[i].metadata = data.metadata;
+                    break;
+                }
+            }
+            
+            // Update the UI
+            updateHistoryDisplay();
+        });
 
         function toggleEditor() {
             const type = document.getElementById('messageType').value;
@@ -123,8 +181,14 @@
             }
         }
 
-        function addToHistory(message, metadata) {
-            messageHistory.unshift({ message, metadata, timestamp: new Date() });
+        function addToHistory(message, metadata, messageId) {
+            messageHistory.unshift({ 
+                message, 
+                metadata, 
+                timestamp: new Date(),
+                id: messageId
+            });
+            
             if (messageHistory.length > MAX_HISTORY) {
                 messageHistory.pop();
             }
@@ -133,15 +197,23 @@
 
         function updateHistoryDisplay() {
             const historyDiv = document.getElementById('messageHistory');
-            historyDiv.innerHTML = messageHistory.map((entry, index) => `
+            historyDiv.innerHTML = messageHistory.map((entry, index) => {
+                const partitionDisplay = entry.metadata && entry.metadata.partition !== null ? entry.metadata.partition : 'pending...';
+                const offsetDisplay = entry.metadata && entry.metadata.offset !== null ? entry.metadata.offset : 'pending...';
+                
+                return `
                 <div class="text-sm p-2 bg-white rounded border hover:bg-gray-50 cursor-pointer" onclick="loadHistoryMessage(${index})">
                     <div class="flex justify-between">
                         <span class="font-medium text-gray-600">${entry.timestamp.toLocaleTimeString()}</span>
-                        <span class="text-xs text-gray-500">Partition: ${entry.metadata.partition}, Offset: ${entry.metadata.offset}</span>
+                        <span class="text-xs text-gray-500">
+                            Partition: <span class="${partitionDisplay === 'pending...' ? 'text-yellow-600' : 'text-green-600'}">${partitionDisplay}</span>, 
+                            Offset: <span class="${offsetDisplay === 'pending...' ? 'text-yellow-600' : 'text-green-600'}">${offsetDisplay}</span>
+                        </span>
                     </div>
                     <div class="text-gray-500 truncate">${typeof entry.message === 'object' ? JSON.stringify(entry.message) : entry.message}</div>
                 </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
         function loadHistoryMessage(index) {
@@ -186,9 +258,9 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        statusDiv.textContent = 'Message sent successfully!';
+                        statusDiv.textContent = 'Message sent successfully! Waiting for broker confirmation...';
                         statusDiv.className = 'text-sm text-green-600';
-                        addToHistory(message, data.metadata);
+                        addToHistory(message, data.metadata, data.message_id);
                     } else {
                         throw new Error(data.error);
                     }
@@ -205,8 +277,16 @@
         {% endif %}
 
         {% if mode == 'consumer' %}
+        // Consumer-specific code
         socket.on('kafka_message', function(data) {
+            console.log('Received Kafka message:', data);
             const messagesDiv = document.getElementById('messages');
+            
+            // Remove the "Waiting for messages..." placeholder if it's the first message
+            if (messageCount === 0 && messagesDiv.firstChild && messagesDiv.firstChild.textContent.includes('Waiting for messages...')) {
+                messagesDiv.innerHTML = '';
+            }
+            
             const messageElement = document.createElement('div');
             messageElement.className = 'bg-gray-50 p-3 rounded-lg';
             
