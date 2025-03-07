@@ -1,0 +1,12 @@
+{
+    "operator": true,
+    "target": {
+        "deployment": "kafka-consumer",
+        "container": "consumer"
+    },
+    "feature": {
+        "copy_target": {
+            "scale_down": true
+        }
+    }
+}

@@ -33,6 +33,7 @@ logger.info(f"Kafka topic: {KAFKA_TOPIC}")
 producer = None
 consumer_thread = None
 consumer_running = threading.Event()
+last_consumer_activity = time.time()  # Track when the consumer was last active
 
 def delivery_report(err, msg):
     if err is not None:
@@ -59,16 +60,24 @@ elif APP_MODE == 'consumer':
                 'bootstrap.servers': KAFKA_BOOTSTRAP_SERVERS,
                 'group.id': 'test-consumer-group',
                 'auto.offset.reset': 'latest',
-                'enable.auto.commit': True
+                'enable.auto.commit': True,
+                'session.timeout.ms': 10000,  # Increased timeout
+                'max.poll.interval.ms': 300000  # Allow more time between polls
             }
             consumer = Consumer(consumer_config)
             consumer.subscribe([KAFKA_TOPIC])
             logger.info("Consumer connected successfully")
             
+            global last_consumer_activity
             consumer_running.set()
+            last_consumer_activity = time.time()
+            
             while consumer_running.is_set():
                 try:
-                    msg = consumer.poll(1.0)
+                    # Use a shorter timeout for poll to keep the thread responsive
+                    msg = consumer.poll(0.5)
+                    last_consumer_activity = time.time()  # Update activity timestamp
+                    
                     if msg is None:
                         continue
                     if msg.error():
@@ -91,7 +100,7 @@ elif APP_MODE == 'consumer':
                             logger.error(f"Error decoding message: {e}")
                 except Exception as e:
                     logger.error(f"Error processing message: {str(e)}", exc_info=True)
-                    time.sleep(1)  # Wait before retrying
+                    time.sleep(0.5)  # Reduced wait time for retries
         except Exception as e:
             logger.error(f"Consumer thread error: {str(e)}", exc_info=True)
             consumer_running.clear()
@@ -148,21 +157,32 @@ def produce_message():
 
 @app.route('/status')
 def status():
+    # Calculate consumer health based on recent activity
+    consumer_health = 'healthy'
+    if APP_MODE == 'consumer' and consumer_thread is not None:
+        if not consumer_running.is_set():
+            consumer_health = 'stopped'
+        elif time.time() - last_consumer_activity > 30:  # If no activity for 30 seconds
+            consumer_health = 'stalled'
+    
     status_info = {
         'mode': APP_MODE,
         'kafka_broker': KAFKA_BOOTSTRAP_SERVERS,
         'topic': KAFKA_TOPIC,
         'status': 'running',
+        'consumer_health': consumer_health,
         'producer_initialized': producer is not None,
-        'consumer_thread_running': consumer_thread is not None and consumer_thread.is_alive() and consumer_running.is_set()
+        'consumer_thread_running': consumer_thread is not None and consumer_thread.is_alive() and consumer_running.is_set(),
+        'timestamp': int(time.time())
     }
     logger.info(f"Status check: {status_info}")
     return jsonify(status_info)
 
 if __name__ == '__main__':
     try:
-        logger.info("Starting Flask-SocketIO server on http://0.0.0.0:5000")
-        socketio.run(app, host='0.0.0.0', port=5000, debug=True)
+        logger.info("Starting Flask-SocketIO server on http://0.0.0.0:9090")
+        # Increase the web server's timeout 
+        socketio.run(app, host='0.0.0.0', port=9090, debug=True)
     except KeyboardInterrupt:
         logger.info("Shutting down...")
         consumer_running.clear()

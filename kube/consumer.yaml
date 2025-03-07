@@ -18,8 +18,9 @@ spec:
       - name: consumer
         image:  docker.io/waveywaves/mirrord-kafka-debug-ex:latest
         imagePullPolicy: Always
+        command: ["gunicorn", "--worker-class", "eventlet", "--workers", "1", "--timeout", "120", "--bind", "0.0.0.0:9090", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info", "app:app"]
         ports:
-        - containerPort: 5000
+        - containerPort: 9090
         env:
         - name: KAFKA_BOOTSTRAP_SERVERS
           value: "kafka-0.kafka.default.svc.cluster.local:9092"
@@ -34,17 +35,12 @@ spec:
         livenessProbe:
           httpGet:
             path: /status
-            port: 5000
+            port: 9090
           initialDelaySeconds: 10
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 3
-        readinessProbe:
-          httpGet:
-            path: /status
-            port: 5000
-          initialDelaySeconds: 5
-          periodSeconds: 10
+
 ---
 apiVersion: v1
 kind: Service
@@ -56,5 +52,5 @@ spec:
   ports:
     - protocol: TCP
       port: 80
-      targetPort: 5000
+      targetPort: 9090
   type: LoadBalancer 
