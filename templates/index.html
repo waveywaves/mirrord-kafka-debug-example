@@ -50,6 +50,21 @@
                     <textarea id="messageInput" class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" rows="4" placeholder="Enter your message here..."></textarea>
                 </div>
 
+                <!-- Message Headers -->
+                <div class="border rounded-lg p-3 bg-gray-50">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-sm font-medium text-gray-700">Kafka Message Headers</h3>
+                        <button onclick="addHeaderField()" class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs hover:bg-blue-200">Add Header</button>
+                    </div>
+                    <div id="headersContainer">
+                        <div class="header-row flex space-x-2 mb-2">
+                            <input type="text" placeholder="Key" class="header-key flex-1 p-2 border rounded text-sm" value="source">
+                            <input type="text" placeholder="Value" class="header-value flex-1 p-2 border rounded text-sm" value="test-">
+                            <button onclick="removeHeaderField(this)" class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs hover:bg-red-200">Remove</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Controls -->
                 <div class="flex space-x-2">
                     <button onclick="sendMessage()" class="flex-1 bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition duration-200">Send Message</button>
@@ -309,12 +324,13 @@
             }
         }
 
-        function addToHistory(message, metadata, messageId) {
+        function addToHistory(message, metadata, messageId, headers) {
             messageHistory.unshift({ 
                 message, 
                 metadata, 
                 timestamp: new Date(),
-                id: messageId
+                id: messageId,
+                headers: headers || {}
             });
             
             if (messageHistory.length > MAX_HISTORY) {
@@ -334,6 +350,19 @@
                     (entry.metadata.offset === 'pending' ? 'pending...' : entry.metadata.offset) : 
                     'pending...';
                 
+                // Format headers for display
+                let headersHtml = '';
+                if (entry.headers && Object.keys(entry.headers).length > 0) {
+                    headersHtml = `
+                        <div class="mt-1 text-xs text-gray-500">
+                            Headers: 
+                            ${Object.entries(entry.headers).map(([key, value]) => 
+                                `<span class="bg-gray-100 px-1 rounded">${key}=${value}</span>`
+                            ).join(' ')}
+                        </div>
+                    `;
+                }
+                
                 return `
                 <div class="text-sm p-2 bg-white rounded border hover:bg-gray-50 cursor-pointer" onclick="loadHistoryMessage(${index})">
                     <div class="flex justify-between">
@@ -344,6 +373,7 @@
                         </span>
                     </div>
                     <div class="text-gray-500 truncate">${typeof entry.message === 'object' ? JSON.stringify(entry.message) : entry.message}</div>
+                    ${headersHtml}
                 </div>
                 `;
             }).join('');
@@ -362,6 +392,39 @@
                 toggleEditor();
                 document.getElementById('messageInput').value = entry.message;
             }
+        }
+        
+        function addHeaderField() {
+            const headersContainer = document.getElementById('headersContainer');
+            const headerRow = document.createElement('div');
+            headerRow.className = 'header-row flex space-x-2 mb-2';
+            headerRow.innerHTML = `
+                <input type="text" placeholder="Key" class="header-key flex-1 p-2 border rounded text-sm">
+                <input type="text" placeholder="Value" class="header-value flex-1 p-2 border rounded text-sm">
+                <button onclick="removeHeaderField(this)" class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs hover:bg-red-200">Remove</button>
+            `;
+            headersContainer.appendChild(headerRow);
+        }
+        
+        function removeHeaderField(button) {
+            const headerRow = button.parentElement;
+            headerRow.remove();
+        }
+        
+        function collectHeaders() {
+            const headers = {};
+            const headerRows = document.querySelectorAll('.header-row');
+            
+            headerRows.forEach(row => {
+                const key = row.querySelector('.header-key').value.trim();
+                const value = row.querySelector('.header-value').value.trim();
+                
+                if (key && value) {
+                    headers[key] = value;
+                }
+            });
+            
+            return headers;
         }
         
         function sendMessage() {
@@ -390,19 +453,25 @@
                     return;
                 }
 
+                // Collect headers from the UI
+                const headers = collectHeaders();
+
                 fetch('/produce', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ message })
+                    body: JSON.stringify({ 
+                        message: message,
+                        headers: headers
+                    })
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
                         statusDiv.textContent = 'Message sent successfully!';
                         statusDiv.className = 'text-sm text-green-600';
-                        addToHistory(message, data.metadata, data.message_id);
+                        addToHistory(message, data.metadata, data.message_id, headers);
                     } else {
                         throw new Error(data.error);
                     }

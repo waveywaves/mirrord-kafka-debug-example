@@ -200,6 +200,7 @@ def produce_message():
 
     data = request.json
     message = data.get('message')
+    custom_headers = data.get('headers', {})
     
     if not message:
         logger.warning("Empty message received")
@@ -212,10 +213,11 @@ def produce_message():
         message_id = str(uuid.uuid4())
         last_message_id = message_id  # Store for delivery report
         
-        # Store initial data in our tracking dictionary
+        # Store the message and headers in our tracking dictionary
         pending_messages[message_id] = {
             'message': message,
             'timestamp': time.time(),
+            'headers': {k: v.decode('utf-8') if isinstance(v, bytes) else v for k, v in custom_headers.items()},
             'metadata': {
                 'partition': 'pending',  # Will be filled by delivery report
                 'offset': 'pending',     # Will be filled by delivery report
@@ -226,12 +228,28 @@ def produce_message():
         # Convert message to JSON string and encode as bytes
         message_bytes = json.dumps(message).encode('utf-8')
         
-        # Produce the message with a 'source' header for mirrord filtering
+        # Prepare Kafka headers
+        kafka_headers = []
+        
+        # Add custom headers from the request
+        for key, value in custom_headers.items():
+            kafka_headers.append((key, value.encode('utf-8')))
+            
+        # If no 'source' header was provided, add our default one
+        if 'source' not in custom_headers:
+            kafka_headers.append(('source', f'test-{message_id}'.encode('utf-8')))
+            logger.info(f"Adding default source header: test-{message_id}")
+            # Also add to our tracking dictionary
+            pending_messages[message_id]['headers']['source'] = f'test-{message_id}'
+            
+        logger.info(f"Sending message with headers: {kafka_headers}")
+        
+        # Produce the message with headers
         producer.produce(
             KAFKA_TOPIC, 
             value=message_bytes, 
             callback=delivery_report,
-            headers=[('source', f'test-{message_id}'.encode('utf-8'))]
+            headers=kafka_headers
         )
         producer.flush(timeout=1)  # Short flush - delivery report will come later
         
@@ -239,6 +257,7 @@ def produce_message():
             'success': True,
             'message': 'Message sent successfully',
             'message_id': message_id,
+            'headers': pending_messages[message_id]['headers'],
             'metadata': pending_messages[message_id]['metadata']
         }
         logger.info(f"Message queued for delivery: {response}")
