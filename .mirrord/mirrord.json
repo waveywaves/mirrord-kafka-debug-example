@@ -5,11 +5,19 @@
         "container": "consumer"
     },
     "feature": {
+        "network": {
+            "outgoing": true,
+            "incoming": false,
+            "dns": true
+        },
+        "env": true,
+        "fs": "local",
+        "hostname": false,
         "split_queues": {
             "test_topic": {
                 "queue_type": "Kafka",
                 "message_filter": {
-                    "source": "^test-"
+                    "source": "^test-.*"
                 }
             }
         }

@@ -8,6 +8,8 @@ import logging
 from dotenv import load_dotenv
 import time
 import uuid
+import socket
+import errno
 
 # Configure logging
 logging.basicConfig(
@@ -17,6 +19,38 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 load_dotenv()
+
+# Function to check if a port is available
+def is_port_available(port):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(1)
+    result = False
+    try:
+        sock.bind(('0.0.0.0', port))
+        result = True
+    except socket.error as e:
+        if e.errno == errno.EADDRINUSE:
+            logger.info(f"Port {port} is already in use")
+        else:
+            logger.error(f"Socket error when checking port {port}: {e}")
+    finally:
+        sock.close()
+    return result
+
+# Find an available port starting from the given port
+def find_available_port(start_port=9090, max_port=9200):
+    port = start_port
+    while port <= max_port:
+        if is_port_available(port):
+            logger.info(f"Found available port: {port}")
+            return port
+        logger.info(f"Port {port} is not available, trying next port")
+        port += 1
+    raise RuntimeError(f"Could not find an available port between {start_port} and {max_port}")
+
+# Get port from environment variable or find an available port
+PORT = int(os.getenv('APP_PORT', '0')) or find_available_port()
+logger.info(f"Selected port: {PORT}")
 
 app = Flask(__name__)
 # Configure SocketIO for production use with eventlet
@@ -247,9 +281,19 @@ def handle_disconnect():
 
 if __name__ == '__main__':
     try:
-        logger.info(f"Starting Flask-SocketIO server on http://0.0.0.0:9090")
+        logger.info(f"Starting Flask-SocketIO server on http://0.0.0.0:{PORT}")
         # Use longer timeout and disable ping interval
-        socketio.run(app, host='0.0.0.0', port=9090, debug=True)
+        try:
+            socketio.run(app, host='0.0.0.0', port=PORT, debug=True)
+        except OSError as e:
+            if e.errno == errno.EADDRINUSE:
+                logger.error(f"Port {PORT} is already in use. Please try again with a different port using APP_PORT environment variable.")
+                # Try one more time with a new port
+                new_port = find_available_port(PORT + 1)
+                logger.info(f"Retrying with port {new_port}")
+                socketio.run(app, host='0.0.0.0', port=new_port, debug=True)
+            else:
+                raise
     except KeyboardInterrupt:
         logger.info("Shutting down...")
         consumer_running.clear()
