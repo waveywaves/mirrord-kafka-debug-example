@@ -192,8 +192,13 @@ def produce_message():
         # Convert message to JSON string and encode as bytes
         message_bytes = json.dumps(message).encode('utf-8')
         
-        # Produce the message
-        producer.produce(KAFKA_TOPIC, value=message_bytes, callback=delivery_report)
+        # Produce the message with a 'source' header for mirrord filtering
+        producer.produce(
+            KAFKA_TOPIC, 
+            value=message_bytes, 
+            callback=delivery_report,
+            headers=[('source', f'test-{message_id}'.encode('utf-8'))]
+        )
         producer.flush(timeout=1)  # Short flush - delivery report will come later
         
         response = {
