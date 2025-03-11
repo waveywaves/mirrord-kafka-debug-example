@@ -6,9 +6,51 @@
 
 Debugging distributed applications, especially those that use messaging queues like Apache Kafka, can be challenging. These systems often span multiple services and depend on asynchronous communication patterns. Traditional debugging approaches can fall short when trying to trace issues across these complex systems.
 
-mirrord is a powerful tool that helps developers debug cloud-native applications by bringing remote resources into your local environment. In this blog post, we'll explore how mirrord can be used to debug Kafka queue-based applications effectively.
+mirrord is a powerful tool that helps developers debug cloud-native applications by bringing remote resources into your local environment using context mirroring. In this blog post, we'll explore how mirrord can be used to debug Kafka queue-based applications effectively.
 
-### b. What is a queue and when is it used?
+### b. Prerequisites
+
+Before we dive into debugging Kafka queues with mirrord, ensure you have the following set up:
+
+#### Development Environment
+- A Kubernetes cluster (you can use one of the following):
+  - kind (Kubernetes in Docker)
+  - minikube
+  - Remote cluster with proper access
+- kubectl CLI tool installed and configured
+- Helm (if using Helm for installation)
+
+#### Installing mirrord
+
+Install the mirrord CLI:
+
+```bash
+brew install metalbear-co/mirrord/mirrord
+```
+
+For alternative installation methods, please follow the [quick start guide](https://mirrord.dev/docs/overview/quick-start/).
+
+#### Installing mirrord operator
+
+You can install the mirrord operator using either Helm or the CLI:
+
+Using Helm:
+```bash
+# Add the MetalBear Helm repository
+helm repo add metalbear https://metalbear-co.github.io/charts
+
+# Install the chart with Kafka splitting enabled
+helm install --set license.key=your-license-key mirrord-operator metalbear/mirrord-operator
+```
+
+Or using the CLI:
+```bash
+mirrord operator setup --accept-tos --license-key your-license-key --kafka-splitting | kubectl apply -f -
+```
+
+Note: When installing with the mirrord-operator Helm chart, Kafka splitting is enabled by setting the `operator.kafkaSplitting` value to `true`.
+
+### c. What is a queue and when is it used?
 
 A queue is a data structure that follows the First-In-First-Out (FIFO) principle, where the first element added is the first one to be removed. In distributed systems, message queues like Kafka are used to:
 
@@ -19,7 +61,7 @@ A queue is a data structure that follows the First-In-First-Out (FIFO) principle
 
 Queues are particularly useful in microservices architectures, event-driven systems, data pipelines, and any scenario where you need reliable asynchronous communication between components.
 
-### c. Popular queue services
+### d. Popular queue services
 
 Several popular message queue services are used in modern distributed applications:
 
@@ -29,17 +71,19 @@ Several popular message queue services are used in modern distributed applicatio
 4. **Google Pub/Sub**: Google Cloud's asynchronous messaging service
 5. **Azure Service Bus**: Microsoft's fully managed enterprise message broker
 
-This blog post will focus on debugging applications that use Apache Kafka with mirrord.
+This blog post will focus on debugging applications with mirrord that use Apache Kafka.
 
 ## 2. Scenarios while debugging a queue
 
 ### a. Simple Kafka producer-consumer application example
 
-To demonstrate debugging techniques, we'll use a simple Kafka producer-consumer application. This example consists of:
+To demonstrate debugging techniques, we'll use a simple Kafka producer-consumer application. This [example](https://github.com/waveywaves/mirrord-kafka-debug-example) consists of:
 
 - A Kafka broker
 - A producer service that publishes messages to a Kafka topic
 - A consumer service that reads messages from the same topic
+
+The following architecture diagram assumes that we are deploying our application and Kafka in Kubernetes. This guide is meant to be used along with the [example repo](https://github.com/waveywaves/mirrord-kafka-debug-example) based on which follows the same architecture.
 
 ![Architecture Diagram - Setup without mirrord](images/setup%20without%20mirrord.png)
 
@@ -159,7 +203,7 @@ mirrord exec --config .mirrord/.copy_scaledown.json -- python app.py
 
 ![Kafka Producer UI for Copy Target](images/Kafka%20Producer%20UI%20Screenshot%20copy_target.png)
 
-### b. Queue Splitting: Local and Remote consumers consume the same data
+### Queue Splitting: Local and Remote consumers consume the same data
 
 #### i. Introduction to queue splitting
 
@@ -240,7 +284,6 @@ spec:
 It is mandatory to create a base-config. For this example we only have the base-config but you can create a basic base config and extend it with the base-config as a parent. Do check [the documentation](https://mirrord.dev/docs/using-mirrord/queue-splitting/#mirrordkafkaclientconfig) for more information on how to extend the base-config.
 
 Through the above configuration we are letting the operator know how to connect to the Kafka cluster. After configuring the above, let's ensure that the operator has information on the consumer workload topics which the local application can use for debugging. For this, let's configure a `MirrordKafkaTopicsConsumer` custom resource which reference the environment variables for the Kafka topic and group id. 
-
 
 ```
 apiVersion: queues.mirrord.metalbear.co/v1alpha
