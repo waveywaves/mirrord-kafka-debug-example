@@ -83,7 +83,7 @@ To demonstrate debugging techniques, we'll use a simple Kafka producer-consumer 
 - A producer service that publishes messages to a Kafka topic
 - A consumer service that reads messages from the same topic
 
-The following architecture diagram assumes that we are deploying our application and Kafka in Kubernetes. This guide is meant to be used along with the [example repo](https://github.com/waveywaves/mirrord-kafka-debug-example) based on which follows the same architecture.
+The following architecture diagram shows the basic setup of our Kafka application in Kubernetes without mirrord. It illustrates how the producer sends messages to the Kafka broker, and how the consumer reads these messages in a standard deployment:
 
 ![Architecture Diagram - Setup without mirrord](images/setup%20without%20mirrord.png)
 
@@ -156,7 +156,21 @@ Using the `copy_target` feature with `scale_down` option in mirrord, you can ens
 
 This lets you debug the consumer without any competition from remote consumers.
 
+The following diagram illustrates how mirrord's copy_target with scale_down feature works. It shows how the original deployment is scaled down to zero, and a copy of the pod is created to ensure your local debug consumer receives all messages:
+
 ![Architecture Diagram - Copy Target with Scale Down](images/setup%20with%20mirrord%20copy_target%2Bscaledown.png)
+
+When executing the Kubernetes apply command, you'll see the resources being created in your cluster. The following screenshot shows the successful application of the Kubernetes manifests:
+
+![Kubernetes Apply Command](images/k%20apply%20-f%20kube%20.png)
+
+The terminal output below shows what you'll see when running mirrord with copy_target. Notice how the local consumer is receiving all messages since it's the only consumer active:
+
+![Terminal Output for Copy Target](images/terminal%20screenshot%20for%20copy_target%20output.png)
+
+This screenshot of the Kafka Producer UI shows the messages being sent when using copy_target mode. You can see the messages that will be consumed exclusively by your local consumer:
+
+![Kafka Producer UI for Copy Target](images/Kafka%20Producer%20UI%20Screenshot%20copy_target.png)
 
 ## 3. Debugging a Kafka topic
 
@@ -203,13 +217,17 @@ mirrord exec --config .mirrord/.copy_scaledown.json -- python app.py
 
 ![Kafka Producer UI for Copy Target](images/Kafka%20Producer%20UI%20Screenshot%20copy_target.png)
 
-### Queue Splitting: Local and Remote consumers consume the same data
+### b. Queue Splitting: Local and Remote consumers consume the same data
 
 #### i. Introduction to queue splitting
 
 Queue splitting is a feature in mirrord that allows both your local application and the remote application to receive the same messages. This is particularly useful when you want to debug without disrupting the existing remote consumers.
 
+The following two diagrams illustrate how queue splitting works in mirrord. The first diagram shows the initial setup where the mirrord operator is intercepting messages:
+
 ![Architecture Diagram - Queue Splitting Setup 1](images/setup%20with%20mirrord%20queue_splitting%201.png)
+
+The second diagram shows how the messages are duplicated and delivered to both the remote and local consumers:
 
 ![Architecture Diagram - Queue Splitting Setup 2](images/setup%20with%20mirrord%20queue_splitting%202.png)
 
@@ -250,6 +268,8 @@ These can be configured in your mirrord configuration file:
     }
 }
 ```
+
+This terminal screenshot shows the output when configuring message filtering in queue splitting mode. You can see how specific messages are being filtered based on the configured pattern:
 
 ![Terminal Screenshot for Filter Queue Splitting](images/terminal%20screenshot%20for%20filter%20queue_splitting.png)
 
@@ -307,6 +327,8 @@ spec:
         container: consumer
         variable: KAFKA_GROUP_ID
 ```
+
+The following terminal output shows the setup process for queue splitting, including the configuration of the mirrord operator and the creation of necessary Kubernetes resources:
 
 ![Terminal Screenshot for Setup Queue Splitting](images/terminal%20screenshot%20for%20setup%20queue_splitting.png)
 
@@ -400,9 +422,15 @@ Run your local application with mirrord using queue splitting.
 $ APP_MODE=consumer PYTHONUNBUFFERED=1 mirrord exec -f .mirrord/mirrord.json -- python app.py
 ```
 
+The following screenshots show the execution of mirrord with queue splitting enabled. First, you can see the initial connection and setup:
+
 ![mirrord Exec Queue Splitting 1](images/mirrord%20exec%20queue_splitting%201.png)
 
+And here you can see the ongoing operation where both local and remote consumers are receiving messages:
+
 ![mirrord Exec Queue Splitting 2](images/mirrord%20exec%20queue_splitting%202.png)
+
+Finally, this screenshot of the Kafka Producer UI shows the messages being sent during queue splitting mode, where both local and remote consumers will receive copies of these messages:
 
 ![Kafka Producer UI Screenshot for Queue Splitting](images/Kafka%20Producer%20UI%20Screenshot%20queue_splitting.png)
 
