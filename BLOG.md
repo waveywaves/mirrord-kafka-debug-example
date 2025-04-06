@@ -14,7 +14,7 @@ mirrord is a powerful tool that helps developers debug cloud-native applications
 
 Before we dive into debugging Kafka consumers with mirrord, ensure you have the following set up:
 
-### Development Environment
+### Environment
 - A Kubernetes cluster (you can use one of the following):
   - kind (Kubernetes in Docker)
   - minikube
@@ -125,6 +125,8 @@ Let's explore how to debug Kafka consumers using a simple example application. O
 - A Kafka broker
 - A producer service that publishes messages to a Kafka topic
 - A consumer service that reads messages from the same topic
+
+**Note:** The sample application used in this guide is available at [https://github.com/waveywaves/mirrord-kakfa-debug-example](https://github.com/waveywaves/mirrord-kakfa-debug-example). This guide is intended to be used alongside the repository, which contains all the code and configuration files needed to follow along.
 
 The following architecture diagram shows the basic setup of our Kafka application in Kubernetes without mirrord. It illustrates how the producer sends messages to the Kafka broker, and how the consumer reads these messages in a standard deployment:
 
@@ -266,10 +268,14 @@ Queue splitting is a powerful feature in mirrord that allows both your local app
 The following diagrams illustrate how queue splitting works in mirrord:
 
 Initial setup with the mirrord operator intercepting messages:
-![Architecture Diagram - Queue Splitting Setup 1](images/setup%20with%20mirrord%20queue_splitting%201.png)
+![Architecture Diagram - Queue Splitting with single debug consumer](images/setup%20with%20mirrord%20queue_splitting%201.png)
+<!-- 
+Messages are duplicated and delivered to both remote and multiple consumers:
+![Architecture Diagram - Queue Splitting setup with two debug consumers](images/setup%20with%20mirrord%20queue_splitting%202.png) -->
 
-Messages are duplicated and delivered to both remote and local consumers:
-![Architecture Diagram - Queue Splitting Setup 2](images/setup%20with%20mirrord%20queue_splitting%202.png)
+This architecture allows multiple debug consumers to run simultaneously. Each developer can run their own local consumer, and all will receive copies of the same messages. The mirrord operator ensures that each local debug consumer gets a complete copy of the message stream, without any competition between them or with the production consumers.
+
+**Tip:** This means your entire team can debug the same Kafka consumer application simultaneously without interfering with each other or with production traffic!
 
 #### Behind the scenes
 
@@ -279,6 +285,8 @@ This works by:
 1. The mirrord operator understands the Kafka protocol
 2. It identifies messages being sent to specific topics
 3. It duplicates these messages, sending the original to the real consumers and copies to your local application
+
+When multiple debug consumers are active, the mirrord operator creates temporary queues for each one. Each developer gets their own independent debug session with access to the message stream.
 
 #### Configuration for queue splitting
 
@@ -388,15 +396,17 @@ You'll see the initial connection and setup:
 
 ![mirrord Exec Queue Splitting 1](images/mirrord%20exec%20queue_splitting%201.png)
 
-And the ongoing operation where both local and remote consumers are receiving messages:
+And the ongoing operation where mutliple and remote consumers are receiving messages:
 
 ![mirrord Exec Queue Splitting 2](images/mirrord%20exec%20queue_splitting%202.png)
+
+The terminal screenshots above show multiple mirrord debug sessions running at the same time. Each instance creates its own copy pod and receives the same messages, demonstrating how multiple developers can debug simultaneously. Notice in the second screenshot how multiple debug consumers are actively receiving messages in parallel.
 
 You can send messages using the producer UI, and both your local and remote consumers will receive copies of these messages:
 
 ![Kafka Producer UI Screenshot for Queue Splitting](images/Kafka%20Producer%20UI%20Screenshot%20queue_splitting.png)
 
-**Tip:** Queue splitting can be used for production debugging as it doesn't disrupt the existing message flow to your production consumers.
+**Tip:** Queue splitting is ideal for team environments where multiple developers need to debug the same Kafka consumer application simultaneously. It provides a non-disruptive way for everyone to see the full message stream without affecting production systems.
 
 ## Debugging with mirrord vs. other debugging techniques
 
