@@ -1,26 +1,28 @@
 # Debugging Kafka Consumers with mirrord
 
-## Introduction to debugging Kafka consumers with mirrord
+## Introduction
 
-### Introduction
+In this guide, we'll cover how to debug Kafka consumer applications running in a Kubernetes environment using mirrord. You'll learn how to set up mirrord and use it to effectively debug Kafka consumers without the traditional overhead of rebuilding and redeploying your application.
+
+**Tip:** You can use mirrord to debug, test, and troubleshoot your Kafka consumers locally with Kubernetes context, without needing to build or deploy each time you make a change.
 
 Debugging distributed applications, especially those that use messaging systems like Apache Kafka, can be challenging. These systems often span multiple services and depend on asynchronous communication patterns. Traditional debugging approaches can fall short when trying to trace issues across these complex systems.
 
-mirrord is a powerful tool that helps developers debug cloud-native applications by bringing remote resources into your local environment using context mirroring. In this blog post, we'll explore how mirrord can be used to debug Kafka consumer applications effectively.
+mirrord is a powerful tool that helps developers debug cloud-native applications by bringing remote resources into your local environment using context mirroring. This allows you to run your Kafka consumer locally while connecting it to your remote Kafka environment.
 
-### Prerequisites
+## Prerequisites
 
 Before we dive into debugging Kafka consumers with mirrord, ensure you have the following set up:
 
-#### Development Environment
+### Development Environment
 - A Kubernetes cluster (you can use one of the following):
-  - kind
+  - kind (Kubernetes in Docker)
   - minikube
   - Remote cluster with proper access
 - kubectl CLI tool installed and configured
 - Helm (if using Helm for installation)
 
-#### Installing mirrord
+### Installing mirrord
 
 Install the mirrord CLI:
 
@@ -30,7 +32,7 @@ brew install metalbear-co/mirrord/mirrord
 
 For alternative installation methods, please follow the [quick start guide](https://mirrord.dev/docs/overview/quick-start/).
 
-#### Installing mirrord operator
+### Installing mirrord operator
 
 You can install the mirrord operator using either Helm or the CLI:
 
@@ -48,7 +50,9 @@ Or using the CLI:
 mirrord operator setup --accept-tos --license-key your-license-key --kafka-splitting | kubectl apply -f -
 ```
 
-Note: When installing with the mirrord-operator Helm chart, Kafka splitting is enabled by setting the `operator.kafkaSplitting` value to `true`.
+**Note:** When installing with the mirrord-operator Helm chart, Kafka splitting is enabled by setting the `operator.kafkaSplitting` value to `true`.
+
+## Understanding Kafka in Distributed Systems
 
 ### What is a queue and when is it used?
 
@@ -71,26 +75,26 @@ Several popular message queue services are used in modern distributed applicatio
 4. **Google Pub/Sub**: Google Cloud's asynchronous messaging service
 5. **Azure Service Bus**: Microsoft's fully managed enterprise message broker
 
-This blog post will focus on debugging applications with mirrord that use Apache Kafka.
+In this guide, we'll focus specifically on debugging applications with mirrord that use Apache Kafka.
 
-### Common debugging techniques for Kafka consumers
+## Common debugging techniques for Kafka consumers
 
-It can be cumbersome to debug Kafka consumers on Kubernetes. The lack of a debugging workflow for applications with multiple runtime dependencies in the context of Kubernetes makes it even harder. Why does it even make it harder? The following are common ways of debugging Kafka consumers with strict runtime environment dependencies:
+It can be cumbersome to debug Kafka consumers on Kubernetes. The lack of a debugging workflow for applications with multiple runtime dependencies in the context of Kubernetes makes it even harder. Why is debugging Kafka consumers in Kubernetes so challenging? Let's look at the common approaches and their limitations:
 
-#### Continuous Deployment
-Build a container image and deploy it to a Kubernetes cluster dedicated to testing or staging. The iterative process of building, deploying, and testing is resource-intensive and time-consuming, especially for testing frequent code changes to Kafka consumers.
+### Continuous Deployment
+Build a container image and deploy it to a Kubernetes cluster dedicated to testing or staging. The iterative process of building, deploying, and testing is resource-intensive and time-consuming, especially when you're making frequent code changes to your Kafka consumers.
 
-#### Log Analysis
-One of the most common ways to understand Kafka consumer behavior in a cluster is by analyzing logs. Adding extra logs to extract runtime information about message consumption, offsets, and processing is very common. Collecting and analyzing logs from different consumers can be effective but it isn't the best real-time debugging solution, especially when trying to trace message flow through the system.
+### Log Analysis
+One of the most common ways to understand Kafka consumer behavior in a cluster is by analyzing logs. Adding extra logs to extract runtime information about message consumption, offsets, and processing is very common. While collecting and analyzing logs from different consumers can be effective, it isn't the best real-time debugging solution, especially when trying to trace message flow through the system.
 
-#### Remote Debugging
+### Remote Debugging
 Developers can use remote debugging tools built into IDEs to attach to Kafka consumer processes already running in a Kubernetes cluster. While this allows real-time code inspection and interaction, it still requires heavy overhead from the IDE and a separate debug configuration for the deployment which can potentially affect the consumer's performance while debugging.
 
-The above methods can be used by themselves or they can be used together.
+The above methods can be used by themselves or they can be used together, but they all have significant drawbacks in terms of development speed and efficiency.
 
-### Challenges of debugging Kafka consumers in Kubernetes
+## Challenges of debugging Kafka consumers in Kubernetes
 
-Debugging Kafka consumers effectively within a Kubernetes context is the biggest challenge. The build and release loop of the application can be short, but the process slows down development significantly. Nothing beats the ease and speed of debugging applications locally.
+Debugging Kafka consumers effectively within a Kubernetes context is perhaps the biggest challenge of working with Kafka in cloud environments. The build and release loop of the application can be short, but the process slows down development significantly. Nothing beats the ease and speed of debugging applications locally.
 
 Kafka consumers present unique challenges:
 
@@ -106,11 +110,17 @@ Kafka consumers present unique challenges:
 
 These challenges make it essential to have a debugging approach that can seamlessly integrate with both local and remote Kafka environments.
 
-## Scenarios while debugging Kafka consumers
+## Introduction to debugging Kafka consumers with mirrord
 
-### Simple Kafka producer-consumer application example
+With mirrord, you don't have to think about building and releasing your applications for debugging. You can run your Kafka consumers locally and mirrord will make sure your locally running process has the context of Kubernetes. Context mirroring for processes allows your process to run locally and consume the resources of a remote Kafka environment.
 
-To demonstrate debugging techniques, we'll use a simple Kafka producer-consumer application. This [example](https://github.com/waveywaves/mirrord-kafka-debug-example) consists of:
+### Workload to process context mirroring
+
+To achieve this, inputs from a Kubernetes workload (e.g., a Kafka consumer Pod) are mirrored to your locally running process. Let's see how we can mirror inputs for our locally running Kafka consumer application using mirrord and pipe these outputs back to Kubernetes. This creates a tighter feedback loop, effectively allowing you to debug faster without the downsides of the common debugging techniques we discussed above.
+
+## Sample application setup
+
+Let's explore how to debug Kafka consumers using a simple example application. Our example consists of:
 
 - A Kafka broker
 - A producer service that publishes messages to a Kafka topic
@@ -120,7 +130,7 @@ The following architecture diagram shows the basic setup of our Kafka applicatio
 
 ![Architecture Diagram - Setup without mirrord](images/setup%20without%20mirrord.png)
 
-#### Understand the application consumer, producer, and Kafka config
+### Understanding the application components
 
 Our example application has these components:
 
@@ -141,7 +151,9 @@ Our example application has these components:
 
 The applications are containerized and deployed to Kubernetes.
 
-#### Table of important values for Kafka endpoint
+### Important Kafka configuration values
+
+#### Kafka endpoint configuration
 
 | Parameter | Value | Description |
 |-----------|-------|-------------|
@@ -151,7 +163,7 @@ The applications are containerized and deployed to Kubernetes.
 | request.timeout.ms | 20000 | Request timeout in milliseconds |
 | connections.max.idle.ms | 300000 | Maximum time connections can remain idle |
 
-#### Table of important values for the consumer topic and group id
+#### Consumer configuration
 
 | Parameter | Value | Description |
 |-----------|-------|-------------|
@@ -160,9 +172,23 @@ The applications are containerized and deployed to Kubernetes.
 | Partition Strategy | Auto (default) | How messages are distributed among consumers |
 | Auto Commit | Enabled | Whether offsets are committed automatically |
 
-### Ideal scenario while debugging Kafka consumers
+## Deploying the example application
 
-When debugging Kafka consumer applications, the ideal scenario would be:
+Let's start by deploying our example Kafka application to Kubernetes:
+
+```bash
+kubectl apply -f kube/
+```
+
+After running this command, you'll see output similar to this:
+
+![Kubernetes Apply Command](images/k%20apply%20-f%20kube%20.png)
+
+This deploys the Kafka broker, producer, and consumer to your Kubernetes cluster. Once everything is up and running, we can proceed with debugging.
+
+## Debugging scenarios for Kafka consumers
+
+When debugging Kafka consumers, you typically want:
 
 1. Full visibility into the message flow
 2. Ability to intercept messages without affecting production systems
@@ -170,46 +196,21 @@ When debugging Kafka consumer applications, the ideal scenario would be:
 4. Access to Kafka broker metrics and consumer group information
 5. Low latency and real-time monitoring capabilities
 
-mirrord helps create these ideal conditions by connecting your local development environment to your remote Kubernetes cluster.
+mirrord helps create these ideal conditions by connecting your local development environment to your remote Kubernetes cluster. Let's explore two primary debugging approaches.
 
-### Problems faced while debugging Kafka consumers
+### Common problems when debugging Kafka consumers
 
-#### The remote consumer competes with the debug consumer
+#### The remote consumer competes with your debug consumer
 
 One of the main challenges when debugging Kafka applications is that the remote consumer (running in production/staging) competes with your local debug consumer. Since Kafka distributes messages among consumers in the same consumer group, your debug consumer might not receive all the messages needed for debugging, making it difficult to reproduce issues.
 
-#### Full data redirection from the main consumer to the debug consumer (when using copy_target + scaledown)
+**Tip:** You'll need a way to ensure your debug consumer can see all relevant messages without disrupting production traffic. mirrord offers two approaches to solve this problem.
 
-Using the `copy_target` feature with `scale_down` option in mirrord, you can ensure all the messages are directed to your local debug consumer. This approach:
+## Debugging a Kafka consumer with mirrord
 
-1. Creates a copy of the target deployment's pod
-2. Scales down the original deployment to zero replicas
-3. Uses the copied pod as the target for the mirrord session
-4. Ensures your local application receives all the messages
+Let's dive into two effective approaches for debugging Kafka consumers with mirrord:
 
-This lets you debug the consumer without any competition from remote consumers.
-
-The following diagram illustrates how mirrord's copy_target with scale_down feature works. It shows how the original deployment is scaled down to zero, and a copy of the pod is created to ensure your local debug consumer receives all messages:
-
-![Architecture Diagram - Copy Target with Scale Down](images/setup%20with%20mirrord%20copy_target%2Bscaledown.png)
-
-When executing the Kubernetes apply command, you'll see the resources being created in your cluster. The following screenshot shows the successful application of the Kubernetes manifests:
-
-![Kubernetes Apply Command](images/k%20apply%20-f%20kube%20.png)
-
-The terminal output below shows what you'll see when running mirrord with copy_target. Notice how the local consumer is receiving all messages since it's the only consumer active:
-
-![Terminal Output for Copy Target](images/terminal%20screenshot%20for%20copy_target%20output.png)
-
-This screenshot of the Kafka Producer UI shows the messages being sent when using copy_target mode. You can see the messages that will be consumed exclusively by your local consumer:
-
-![Kafka Producer UI for Copy Target](images/Kafka%20Producer%20UI%20Screenshot%20copy_target.png)
-
-## Debugging a Kafka consumer
-
-### Simple Debug: Local consumer consumes the data exclusively
-
-#### copy_target + scaledown
+### Approach 1: Simple Debug with copy_target + scaledown
 
 The simplest way to debug Kafka consumers is to ensure your local consumer is the only one receiving messages from the topic. mirrord's `copy_target` feature with `scale_down` enabled accomplishes this:
 
@@ -231,40 +232,46 @@ The simplest way to debug Kafka consumers is to ensure your local consumer is th
 This configuration:
 1. Targets the `kafka-consumer` deployment
 2. Creates a copy of the deployment's pod
-3. Scales down the original deployment to zero
-4. Ensures your local application is the only consumer of the messages
+3. Scales down the original deployment to zero replicas
+4. Ensures your local application receives all the messages
 
-To use this configuration:
+This approach is illustrated in the following diagram:
 
-```bash
-$ kubectl apply -f kube/
-```
+![Architecture Diagram - Copy Target with Scale Down](images/setup%20with%20mirrord%20copy_target%2Bscaledown.png)
 
-![Kubernetes Apply Command](images/k%20apply%20-f%20kube%20.png)
+#### How to use this configuration
+
+Save the configuration to a file named `.mirrord/.copy_scaledown.json` and run:
 
 ```bash
 mirrord exec --config .mirrord/.copy_scaledown.json -- python app.py
 ```
 
+When you run this command, you'll see output similar to:
+
 ![Terminal Output for Copy Target](images/terminal%20screenshot%20for%20copy_target%20output.png)
+
+Now your local consumer is receiving all messages since it's the only consumer active. You can send messages using the producer UI:
 
 ![Kafka Producer UI for Copy Target](images/Kafka%20Producer%20UI%20Screenshot%20copy_target.png)
 
-### Queue Splitting: Local and Remote consumers consume the same data
+**Tip:** This approach is perfect for isolated debugging, but be aware that it temporarily stops the original consumer from processing messages. Use it in development or testing environments rather than production.
 
-#### Introduction to queue splitting
+### Approach 2: Queue Splitting for non-disruptive debugging
 
-Queue splitting is a feature in mirrord that allows both your local application and the remote application to receive the same messages. This is particularly useful when you want to debug without disrupting the existing remote consumers.
+Queue splitting is a powerful feature in mirrord that allows both your local application and the remote application to receive the same messages. This is particularly useful when you want to debug without disrupting the existing remote consumers.
 
-The following two diagrams illustrate how queue splitting works in mirrord. The first diagram shows the initial setup where the mirrord operator is intercepting messages:
+#### How queue splitting works
 
+The following diagrams illustrate how queue splitting works in mirrord:
+
+Initial setup with the mirrord operator intercepting messages:
 ![Architecture Diagram - Queue Splitting Setup 1](images/setup%20with%20mirrord%20queue_splitting%201.png)
 
-The second diagram shows how the messages are duplicated and delivered to both the remote and local consumers:
-
+Messages are duplicated and delivered to both remote and local consumers:
 ![Architecture Diagram - Queue Splitting Setup 2](images/setup%20with%20mirrord%20queue_splitting%202.png)
 
-##### How does queue splitting work with the mirrord operator?
+#### Behind the scenes
 
 The mirrord operator intercepts messages at the Kafka broker level before they are delivered to consumers. It makes copies of these messages and delivers them to both the remote consumers and your local application. 
 
@@ -273,14 +280,13 @@ This works by:
 2. It identifies messages being sent to specific topics
 3. It duplicates these messages, sending the original to the real consumers and copies to your local application
 
-##### What local mirrord needs to know about the application?
+#### Configuration for queue splitting
 
-For queue splitting to work, the local mirrord client needs to know:
-- The Kafka topic to listen to
-- The consumer group ID of your application
-- Optional message filters to select specific messages
+For queue splitting to work, you need to configure both the local mirrord client and the mirrord operator.
 
-These can be configured in your mirrord configuration file:
+##### Local mirrord configuration
+
+Create a file named `.mirrord/mirrord.json` with the following content:
 
 ```json
 {
@@ -302,21 +308,22 @@ These can be configured in your mirrord configuration file:
 }
 ```
 
-This terminal screenshot shows the output when configuring message filtering in queue splitting mode. You can see how specific messages are being filtered based on the configured pattern:
+This configuration tells the local mirrord client:
+- The Kafka topic to listen to (`test_topic`)
+- To filter messages based on a pattern (`^test-`)
+- Which deployment to target (`kafka-consumer`)
+
+**Tip:** You can use message filters to focus on specific patterns of messages, making debugging more targeted.
+
+When you run mirrord with message filtering, you'll see output like this:
 
 ![Terminal Screenshot for Filter Queue Splitting](images/terminal%20screenshot%20for%20filter%20queue_splitting.png)
 
-##### What the operator needs to know about the application
+##### Operator configuration
 
-The mirrord operator needs information about:
-- The Kafka client configuration (broker addresses, security settings)
-- The topics to monitor
-- The deployments consuming these topics
-- Consumer group mappings
+The mirrord operator needs information about the Kafka setup. This is configured using Kubernetes custom resources.
 
-This is configured using Kubernetes custom resources like `MirrordKafkaClientConfig` and `MirrordKafkaTopicsConsumer`:
-
-The `MirrordKafkaClientConfig` has to be in the same repository as where the mirrord operator is running. It needs to have the bootstrap server endpoint and the client id given in the configuration. 
+First, create a `MirrordKafkaClientConfig` resource:
 
 ```yaml
 apiVersion: queues.mirrord.metalbear.co/v1alpha
@@ -334,11 +341,9 @@ spec:
     value: PLAINTEXT
 ```
 
-It is mandatory to create a base-config. For this example we only have the base-config but you can create a basic base config and extend it with the base-config as a parent. Do check [the documentation](https://mirrord.dev/docs/using-mirrord/queue-splitting/#mirrordkafkaclientconfig) for more information on how to extend the base-config.
+Next, create a `MirrordKafkaTopicsConsumer` resource:
 
-Through the above configuration we are letting the operator know how to connect to the Kafka cluster. After configuring the above, let's ensure that the operator has information on the consumer workload topics which the local application can use for debugging. For this, let's configure a `MirrordKafkaTopicsConsumer` custom resource which reference the environment variables for the Kafka topic and group id. 
-
-```
+```yaml
 apiVersion: queues.mirrord.metalbear.co/v1alpha
 kind: MirrordKafkaTopicsConsumer
 metadata:
@@ -361,128 +366,49 @@ spec:
         variable: KAFKA_GROUP_ID
 ```
 
-The following terminal output shows the setup process for queue splitting, including the configuration of the mirrord operator and the creation of necessary Kubernetes resources:
-
-![Terminal Screenshot for Setup Queue Splitting](images/terminal%20screenshot%20for%20setup%20queue_splitting.png)
-
-#### How to use queue splitting to debug a producer-consumer application in Kafka
-
-##### Prerequisites
-
-###### Kubernetes cluster (mention kind)
-
-You need a Kubernetes cluster to deploy the application and the mirrord operator. For development purposes, you can use:
-- kind (Kubernetes in Docker)
-- minikube
-- Remote cluster with proper access
-
-###### Installing mirrord
-
-To install mirrord CLI:
-
-```bash
-brew install metalbear-co/mirrord/mirrord
-```
-
-Please follow the [quick start guide](https://mirrord.dev/docs/overview/quick-start/) if the above installation method doesn't work.
-
-###### Installing mirrord operator with Kafka queue splitting enabled
-
-To install the mirrord Operator with Helm, first add the MetalBear Helm repository:
-
-```bash
-helm repo add metalbear https://metalbear-co.github.io/charts
-```
-
-Then install the chart with Kafka splitting enabled:
-
-```bash
-helm install --set license.key=your-license-key mirrord-operator metalbear/mirrord-operator
-```
-
-When installing with the mirrord-operator Helm chart, Kafka splitting is enabled by setting the `operator.kafkaSplitting` value to `true`.
-
-Alternatively, you can install the operator using the CLI:
-
-```bash
-mirrord operator setup --accept-tos --license-key your-license-key --kafka-splitting | kubectl apply -f -
-```
-
-##### Configurations
-
-###### Local application: .mirrord.json
-
-```json
-{
-    "operator": true,
-    "target": {
-        "deployment": "kafka-consumer",
-        "container": "consumer"
-    },
-    "feature": {
-        "split_queues": {
-            "test_topic": {
-                "queue_type": "Kafka",
-                "message_filter": {
-                    "source": "^test-"
-                }
-            }
-        }
-    }
-}
-```
-
-###### Remote application: Operator configuration
-
-Apply the Kubernetes resources for the mirrord operator configuration:
+Apply these configurations to your cluster:
 
 ```bash
 kubectl apply -f kube/
 ```
 
-#### Debugging your Kafka consumers with mirrord queue splitting
+Setting up the mirrord operator for queue splitting will look like this:
 
-To start debugging with queue splitting:
+![Terminal Screenshot for Setup Queue Splitting](images/terminal%20screenshot%20for%20setup%20queue_splitting.png)
 
-```bash
-# Example output of deploying the application
-$ kubectl apply -f kube/
-```
+#### Running your local consumer with queue splitting
 
-Run your local application with mirrord using queue splitting.
+Now you can run your local application with mirrord using queue splitting:
 
 ```bash
-$ APP_MODE=consumer PYTHONUNBUFFERED=1 mirrord exec -f .mirrord/mirrord.json -- python app.py
+APP_MODE=consumer PYTHONUNBUFFERED=1 mirrord exec -f .mirrord/mirrord.json -- python app.py
 ```
 
-The following screenshots show the execution of mirrord with queue splitting enabled. First, you can see the initial connection and setup:
+You'll see the initial connection and setup:
 
 ![mirrord Exec Queue Splitting 1](images/mirrord%20exec%20queue_splitting%201.png)
 
-And here you can see the ongoing operation where both local and remote consumers are receiving messages:
+And the ongoing operation where both local and remote consumers are receiving messages:
 
 ![mirrord Exec Queue Splitting 2](images/mirrord%20exec%20queue_splitting%202.png)
 
-Finally, this screenshot of the Kafka Producer UI shows the messages being sent during queue splitting mode, where both local and remote consumers will receive copies of these messages:
+You can send messages using the producer UI, and both your local and remote consumers will receive copies of these messages:
 
 ![Kafka Producer UI Screenshot for Queue Splitting](images/Kafka%20Producer%20UI%20Screenshot%20queue_splitting.png)
 
-With this setup, both your local application and the remote consumer will receive the same Kafka messages, allowing you to debug issues without disrupting the production flow.
+**Tip:** Queue splitting can be used for production debugging as it doesn't disrupt the existing message flow to your production consumers.
+
+## Debugging with mirrord vs. other debugging techniques
+
+mirrord distinguishes itself by eliminating the need for repeated building and deployment cycles. It allows you to run your Kafka consumer locally while providing it with the necessary network and execution context of the target Kubernetes environment. Your local consumer behaves as if it were running within the cluster, enabling you to debug using familiar tools without the overhead of build and deploy cycles.
 
 ## Conclusion
 
-Debugging Kafka-based consumer applications brings unique challenges due to their distributed nature and asynchronous communication patterns. mirrord offers powerful capabilities to overcome these challenges:
+In this guide, we've explored how to use mirrord to debug Kafka consumer applications in Kubernetes. We've seen two powerful approaches:
 
 1. **Queue splitting** allows you to debug without disrupting existing consumers by duplicating messages
 2. **Copy target with scale down** gives your local application exclusive access to Kafka messages
-3. The ability to filter messages helps focus on specific message patterns
-
-These features enable developers to:
-- Reproduce and fix bugs faster
-- Test changes in a realistic environment
-- Understand message flow in complex distributed systems
-- Troubleshoot production issues without disrupting service
 
 By leveraging mirrord, you can significantly improve your productivity when working with Kafka consumer applications and streamline your debugging workflow.
 
-For more information, visit the official [mirrord documentation](https://mirrord.dev/docs/). 
+Curious to try it out? Give mirrord a go and see how it works for you. Got questions? Visit the official [mirrord documentation](https://mirrord.dev/docs/) or join the community Discord channel! 
