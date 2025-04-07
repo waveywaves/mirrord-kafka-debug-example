@@ -22,7 +22,7 @@ A sample application demonstrating how to debug Kafka consumers using mirrord. T
 ## Features
 
 - Producer service with a web UI for publishing messages
-- Consumer service with a web UI that processes Kafka messages
+- Consumer service that processes Kafka messages, these messages can be seen in the terminal
 - Kubernetes-ready deployment
 - mirrord configuration for debugging Kafka consumers with two different approaches
 
