@@ -23,7 +23,7 @@ spec:
         - containerPort: 9090
         env:
         - name: KAFKA_BOOTSTRAP_SERVERS
-          value: "kafka:9092"
+          value: "kafka-kafka-bootstrap.default.svc:9092"
         - name: KAFKA_TOPIC
           value: "test-topic"
         - name: APP_MODE

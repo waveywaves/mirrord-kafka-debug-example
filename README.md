@@ -60,7 +60,7 @@ conda activate kafka-debug
 Deploy the application to your Kubernetes cluster:
 
 ```bash
-kubectl apply -f kube/
+kubectl apply -f https://strimzi.io/install/latest?namespace=default && kubectl apply -f kube/
 ```
 
 ## Debugging with mirrord
@@ -92,6 +92,18 @@ This configuration:
 - Allows both your local application and remote consumers to receive the same messages
 - Uses the mirrord operator to intercept and duplicate Kafka messages
 - Supports message filtering for targeted debugging
+
+### Accessing Producer Web UI and Kafbat/kafka-ui via kubectl port-forward
+Producer Web
+```bash
+kubectl port-forward deploy/kafka-producer 9090:9090
+```
+
+Kafbat
+```bash
+kubectl port-forward deploy/kafka-ui 8090:8090
+```
+
 
 ## How it Works
 

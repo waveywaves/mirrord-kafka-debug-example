@@ -6,7 +6,7 @@ metadata:
 spec:
   properties:
   - name: bootstrap.servers
-    value: kafka-0.kafka.default.svc.cluster.local:9092
+    value: kafka-kafka-bootstrap.default.svc:9092
   - name: client.id
     value: mirrord-operator
   - name: security.protocol
