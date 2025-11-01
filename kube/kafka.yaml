@@ -1,93 +1,80 @@
-apiVersion: v1
-kind: Service
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaNodePool
 metadata:
-  name: kafka
+  name: dual-role
   labels:
-    app: kafka
+    strimzi.io/cluster: kafka
 spec:
-  ports:
-  - port: 9092
-    name: kafka
-  - port: 9093
-    name: controller
-  clusterIP: None
-  selector:
-    app: kafka
+  replicas: 1
+  roles:
+    - controller
+    - broker
+  storage:
+    type: jbod
+    volumes:
+      - id: 0
+        type: ephemeral
+        kraftMetadata: shared
 ---
-apiVersion: apps/v1
-kind: StatefulSet
+
+apiVersion: kafka.strimzi.io/v1beta2
+kind: Kafka
 metadata:
   name: kafka
 spec:
-  serviceName: kafka
+  kafka:
+    version: 4.1.0
+    metadataVersion: 4.1-IV1
+    listeners:
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
+      - name: tls
+        port: 9093
+        type: internal
+        tls: true
+    config:
+      offsets.topic.replication.factor: 1
+      transaction.state.log.replication.factor: 1
+      transaction.state.log.min.isr: 1
+      default.replication.factor: 1
+      min.insync.replicas: 1
+      auto.create.topics.enable: "true"
+      delete.topic.enable: "true"
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: kafka-ui
+  labels:
+    app: kafka-ui
+spec:
   replicas: 1
   selector:
     matchLabels:
-      app: kafka
+      app: kafbat
   template:
     metadata:
       labels:
-        app: kafka
+        app: kafbat
     spec:
       containers:
-      - name: kafka
-        image: bitnamilegacy/kafka:latest
-        ports:
-        - containerPort: 9092
-          name: kafka
-        - containerPort: 9093
-          name: controller
-        env:
-        - name: KAFKA_CFG_NODE_ID
-          value: "1"
-        - name: KAFKA_CFG_PROCESS_ROLES
-          value: "controller,broker"
-        - name: KAFKA_CFG_CONTROLLER_QUORUM_VOTERS
-          value: "1@kafka-0.kafka.default.svc.cluster.local:9093"
-        - name: KAFKA_CFG_LISTENERS
-          value: "PLAINTEXT://:9092,CONTROLLER://:9093"
-        - name: KAFKA_CFG_ADVERTISED_LISTENERS
-          value: "PLAINTEXT://kafka-0.kafka.default.svc.cluster.local:9092"
-        - name: KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP
-          value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
-        - name: KAFKA_CFG_CONTROLLER_LISTENER_NAMES
-          value: "CONTROLLER"
-        - name: KAFKA_CFG_INTER_BROKER_LISTENER_NAME
-          value: "PLAINTEXT"
-        - name: ALLOW_PLAINTEXT_LISTENER
-          value: "yes"
-        - name: KAFKA_KRAFT_CLUSTER_ID
-          value: "KafkaCluster1"
-        volumeMounts:
-        - name: kafka-data
-          mountPath: /bitnami/kafka
-        readinessProbe:
-          exec:
-            command:
-            - kafka-topics.sh
-            - --bootstrap-server
-            - localhost:9092
-            - --list
-          initialDelaySeconds: 15
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        livenessProbe:
-          exec:
-            command:
-            - kafka-topics.sh
-            - --bootstrap-server
-            - localhost:9092
-            - --list
-          initialDelaySeconds: 15
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-  volumeClaimTemplates:
-  - metadata:
-      name: kafka-data
-    spec:
-      accessModes: [ "ReadWriteOnce" ]
-      resources:
-        requests:
-          storage: 1Gi 
+        - name: kafbat
+          image: ghcr.io/kafbat/kafka-ui:latest
+          ports:
+            - name: http-port
+              containerPort: 8090
+              protocol: TCP
+          env:
+            - name: KAFKA_CLUSTERS_0_NAME
+              value: kafka
+            - name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
+              value: "kafka-kafka-bootstrap.default.svc:9092"
+            - name: DYNAMIC_CONFIG_ENABLED
+              value: "true"
+            - name: SERVER_PORT
+              value: "8090"
